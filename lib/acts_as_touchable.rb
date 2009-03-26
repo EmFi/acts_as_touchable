@@ -64,7 +64,7 @@ module ActiveRecord #:nodoc:
         def self.extended(klass)
           [:before, :after].each do |at|
             
-            [:validation,:create, :save,:destroy].each do |stage|
+            [:validation,:create, :save,:destroy, :update].each do |stage|
               class_eval %{
               
               def #{klass}.touch_#{at}_#{stage}(*args)
@@ -176,7 +176,7 @@ module ActiveRecord #:nodoc:
         end
         
         def add_default_callback(touchable,association_id)
-          unless touchable.to_s =~ /(before|after)_(create|save|destroy|validation(_create|_update))/
+          unless touchable.to_s =~ /(before|after)_(create|update|save|destroy|validation(_on_create|_on_update)?)/
             raise ActiveRecord::Callbacks::UnknownCallbackError, "#{touchable} is not a valid ActiveRecord::Callback."
           end
           puts association_id
