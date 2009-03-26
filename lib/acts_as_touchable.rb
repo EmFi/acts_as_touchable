@@ -178,8 +178,7 @@ module ActiveRecord #:nodoc:
         def add_default_callback(touchable,association_id)
           unless touchable.to_s =~ /(before|after)_(create|update|save|destroy|validation(_on_create|_on_update)?)/
             raise ActiveRecord::Callbacks::UnknownCallbackError, "#{touchable} is not a valid ActiveRecord::Callback."
-          end
-          puts association_id
+          end          
           arg_reflections = self.reflections[association_id.to_sym]
           if arg_reflections.options[:touchable] && Kernel::const_get(arg_reflections.class_name).instance_methods.include?("touch")            
             self.send "#{touchable}", "touch_#{association_id}"

@@ -6,10 +6,17 @@ Description
 
 Provides methods and callbacks to touch updated_at/updated_on attributes of an ActiveRecord. This adds common directory style timestamping to models with parent-child relationships.
 
+
 Requirements
 ============
 
 A class that invokes acts_as_touchable must have a datetime column named update_(on|at) or specify a column to use through the :column option.
+
+
+Installation
+============
+From the root of your rails project run the following command:
+./script/plugin install git://github.com/EmFi/acts_as_touchable.git
 
 Usage
 =====
