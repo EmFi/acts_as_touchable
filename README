@@ -1,0 +1,38 @@
+ActsAsTouchable
+===============
+
+Provides methods and callbacks to touch updated_at/updated_on attributes of an ActiveRecord
+
+Requirements
+=================
+
+A class that invokes acts_as_touchable must have a datetime column named update_(on|at)
+
+Example
+=======
+
+class TouchableExample < ActiveRecord::Base
+has_many :touchers_examples
+acts_as_touchable
+end
+
+class ToucherExample < ActiveRecord::Base
+belongs_to :touchable_example, :touchable => true
+touch_after_save :touchable_example
+end
+
+t = Touchable.new
+t.touch
+
+toucher = t.create_touchable_example
+.... #code that modifies toucher
+toucher.save
+
+t.update
+
+Things To Do:
+===========
+Create test suite
+
+
+Copyright (c) 2009 Emery, released under the MIT license
