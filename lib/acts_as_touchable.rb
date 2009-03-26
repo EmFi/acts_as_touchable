@@ -35,7 +35,7 @@ module ActiveRecord #:nodoc:
               end
               
               
-                self[#{column}]= "meh"
+                self[#{column}]= DateTime.now
               return save
                   
                   
@@ -48,7 +48,7 @@ module ActiveRecord #:nodoc:
                 raise ActiveRecord::Acts::Touchable::ModifiedError, "Touch aborted: Tried touching dirty record"
               end
               
-                self[#{column}]= "meh"
+                self[#{column}]= DateTime.now
                 save!
             end          
           }
@@ -89,7 +89,7 @@ module ActiveRecord #:nodoc:
                       args.each do |arg|
                         arg_reflections = #{klass}.reflections[arg.to_sym]
                       if arg_reflections.options[:touchable] && Kernel::const_get(arg_reflections.class_name).instance_methods.include?("touch")
-                        #{at}_#{stage}_on_#{on_action} "\#{arg}.touch"
+                        self.send "#{at}_#{stage}_on_#{on_action}", "touch_\#{arg}"
                       else
                         raise ActiveRecord::Acts::Touchable::UntouchableError, "\#{arg_reflections.class_name} is not touchable."
                       end
@@ -128,14 +128,17 @@ module ActiveRecord #:nodoc:
         class_eval %{
                 def create_#{method}_reflection_with_touchable(association_id, options)                       
                         
-                        touchable =  options.delete(:touchable)
-                        reflection = create_#{method}_reflection_without_touchable(association_id, options)                        
-                        
+                        touchable =  options.delete(:touchable)                        
+                        reflection = create_#{method}_reflection_without_touchable(association_id, options)                                                
                         if touchable
-                                reflection.options[:touchable] ||= true
-                                extend ActiveRecord::Acts::Touchable::AssociationClassMethods unless is_a?(ActiveRecord::Acts::Touchable::AssociationClassMethods)
-                                generate_touchable_instance_methods(association_id, "#{method}")                                  
-                              
+                                reflection.options[:touchable] ||= true                                
+                                generate_toucher_instance_methods(association_id, "#{method}")
+                                unless touchable == true                                
+                                  add_default_callback(touchable, association_id)
+                                else
+                                  extend ActiveRecord::Acts::Touchable::AssociationClassMethods unless is_a?(ActiveRecord::Acts::Touchable::AssociationClassMethods)
+                                end
+                                
                         end                                                                        
                         reflection
                 end
@@ -144,7 +147,7 @@ module ActiveRecord #:nodoc:
       end
       
       protected
-      def generate_touchable_instance_methods(association_id, method)
+      def generate_toucher_instance_methods(association_id, method)
         class_eval %{
           
            if Kernel::const_get("#{association_id.to_s.singularize.camelcase}").instance_methods.include?("touch")
@@ -170,7 +173,20 @@ module ActiveRecord #:nodoc:
             raise ActiveRecord::Acts::Touchable::UntouchableError, "\#{association_id.to_s.singularize.camelcase} is not touchable."                  
            end
         }
-      end
+        end
+        
+        def add_default_callback(touchable,association_id)
+          unless touchable.to_s =~ /(before|after)_(create|save|destroy|validation(_create|_update))/
+            raise ActiveRecord::Callbacks::UnknownCallbackError, "#{touchable} is not a valid ActiveRecord::Callback."
+          end
+          puts association_id
+          arg_reflections = self.reflections[association_id.to_sym]
+          if arg_reflections.options[:touchable] && Kernel::const_get(arg_reflections.class_name).instance_methods.include?("touch")            
+            self.send "#{touchable}", "touch_#{association_id}"
+          else
+            raise ActiveRecord::Acts::Touchable::UntouchableError, "\#{arg_reflections.class_name} is not touchable."
+          end
+        end
       
       
     end
