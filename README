@@ -4,22 +4,36 @@ Acts As Touchable
 Description
 ===========
 
-Provides methods and callbacks to touch updated_at/updated_on attributes of an ActiveRecord. This adds common directory style timestamping to models with parent-child relationships.
+Provides methods and callbacks to touch updated_at/updated_on attributes of an
+ActiveRecord. This adds common directory style timestamping to models with
+parent-child relationships. Where the top level directory shares the timestamp
+with the most recently modified of its descendents.
+
+Acts As Touchable behaves similarly to the :autosave association option. Only in
+reverse. As it updates parent objects when the child object is modified.
 
 
 Requirements
 ============
 
-A class that invokes acts_as_touchable must have a datetime column named update_(on|at) or specify a column to use through the :column option.
+A class that invokes acts_as_touchable must have a datetime column named
+update_(on|at) or specify a column to use through the :column option.
 
 
 Installation
 ============
+
 From the root of your rails project run the following command:
 ./script/plugin install git://github.com/EmFi/acts_as_touchable.git
 
 Usage
 =====
+
+To define a parent-child relationship as a touchable one. The parent model must
+call acts_as_touchable, and the child model must have supply the :touchable
+option ot the association with the parent model. See the examples for further
+details.
+
 
 acts_as_touchable options
 -------------------------
@@ -30,19 +44,19 @@ instance methods.
 Accepted options: 
 :column => name of column in model to update with timestamp when touched.
     Default uses updated_at or updated_belongs_to options on.
-:touch_dirty => boolean value determining if touching a changed model will
-    succeed. Default value is false
 
 
-touch/touch!
-------------
+touch
+------
 
-instance methods that set timestamp column specified in acts_as_touchable
-definition to current time. Will raise an exception if the record has been
-modified and :touch_dirty => true was not given to acts_as_touchable. 
+Instance method that sets timestamp column specified in acts_as_touchable
+definition to current time.
 
-Following rails conventions, touch will return false if it fails, while touch!
-will raise an exception.
+touch!
+------
+
+Has the same behaviour as touch, but also saves the record.
+
 
 
 belongs_to/has_many/has_one association_id, :touchable => false|true|call_back
@@ -58,53 +72,59 @@ behaves as it would without acts_as_touchable. This is provided as a quick and
 easy way to disable acts_as_touchable without having to toggle comments on
 multiple lines.
 
-Accepted options:  false, true, :after_create, :after_destroy, :after_save,
-:after_update, :after_validation, :after_validation_on_create,
+Accepted options:  false, true, :none, :after_create, :after_destroy,
+:after_save, :after_update, :after_validation, :after_validation_on_create,
 :after_validation_on_update, :before_create, :before_destroy, :before_save,
 :before_update, :before_validation, :before_validation_on_create, 
-:before_validation_on_update 
+:before_validation_on_update, or any array of valid callback symbols
 
-true disables updating the related model as part of the call back chain, but
-provides handy methods to add a touch to a call back chain. 
+:touchable => true is an alias for touchable => [:after_save, :after_destroy]
 
-touch_{callback} :association_id ie: touch_after_save :parent
+All non-false values received by :touchable add a touch_#{association_id}
+method.
 
-Any of the other options saves will set up the appropriate call back to update
-the related model.
+Any options named after call backs will set up the appropriate call back(s)
+to update the related model.
+
+touchable => :none disables updating the related model as part of the
+call back chain. But still provides the methods to touch the associated object,
+giving you greater control over when these methods are called.
+
+
 
 Example
 =======
 
 
-class TouchableExample < ActiveRecord::Base
-has_many :touchers_examples
+class Parent < ActiveRecord::Base
+has_many :children
 acts_as_touchable :column => :timestamp
         # adds touch and touch! methods updating timestamp whenever
-        # TouchableExample is touched.
+        # Parent is touched.
 end
 
 
 
 class ToucherExample < ActiveRecord::Base
-belongs_to :touchable_example, :touchable => :after_save
+belongs_to :parent, :touchable => :after_save
         # adds after_save call back to touch related touchable_example model.
 end
-@touchable = Touchable.new
-@touchable.touch
+@parent = Parent.new
+@parent.touch #updates timestamp to current time on @parent without saving.
 
 
-@toucher = @touchable.create_touchable_example
-.... #code that modifies @toucher
-@toucher.save   # updates @touchable.timestamp with current time.
+@child = @parent.children.create
+.... #code that modifies @child
+@child.save   # updates @parent.timestamp with current time and saves @parent.
 
 
 
 Caveats:
 ========
 
-Do not make belongs_to/has_one/has_many touchable loops. The plugin does not yet
-handle infinite loops.
-
+Saving an unmodified object that has a :touchable association will not update
+that relation. This is done to halt infinte loops when used there is a circular
+:touchable or :autosave relation.
 
 Things To Do:
 =============

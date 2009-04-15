@@ -11,7 +11,6 @@ module ActiveRecord #:nodoc:
       module ClassMethods 
         def acts_as_touchable options ={}
           column = options.delete(:column)
-          touch_dirty = options.delete(:touch_dirty) 
           if column.nil? && self.column_names.grep(/^(updated_(at|on))$/i)
             column =  $1
           else raise ActiveRecord::Acts::Touchable::Untouchable, "Acts As Touchable requires a touchable model to have an updated_on or an updated_at column. #{@class} has neither of these columns. You may also specify a column with the :column option for acts_as_touchable" 
@@ -29,28 +28,13 @@ module ActiveRecord #:nodoc:
           
           class_eval %{
             def touch
-              
-              if changed? #{"|| true" if touch_dirty}
-                raise ActiveRecord::Acts::Touchable::ModifiedError, "Touch aborted: Tried touching dirty record"
-              end
-              
-              
-                self[#{column}]= DateTime.now
-              return save
-                  
-                  
-                
+               self[#{column}]= DateTime.now              
             end
-            
-            
-            def touch!              
-              if changed? #{"|| true" if touch_dirty}
-                raise ActiveRecord::Acts::Touchable::ModifiedError, "Touch aborted: Tried touching dirty record"
-              end
-              
-                self[#{column}]= DateTime.now
-                save!
-            end          
+               
+            def touch!
+               self[#{column}]= DateTime.now
+               self.save
+            end
           }
           
           
@@ -128,17 +112,20 @@ module ActiveRecord #:nodoc:
         class_eval %{
                 def create_#{method}_reflection_with_touchable(association_id, options)                       
                         
-                        touchable =  options.delete(:touchable)                        
+                        touchable =  options.delete(:touchable)      
                         reflection = create_#{method}_reflection_without_touchable(association_id, options)                                                
                         if touchable
                                 reflection.options[:touchable] ||= true                                
                                 generate_toucher_instance_methods(association_id, "#{method}")
-                                unless touchable == true                                
-                                  add_default_callback(touchable, association_id)
-                                else
+                                if touchable == true
+                                  [:before_destroy, :before_save].each{|this_callback| add_default_callback(this_callback, association_id)}                                  
+                                elsif touchable.is_a?(Array)
+                                  touchable.each{|this_callback| add_default_callback(this_callback, association_id)}
+                                elsif touchable == :none
                                   extend ActiveRecord::Acts::Touchable::AssociationClassMethods unless is_a?(ActiveRecord::Acts::Touchable::AssociationClassMethods)
-                                end
-                                
+                                else
+                                  add_default_callback(touchable, association_id)
+                                end                                
                         end                                                                        
                         reflection
                 end
@@ -154,18 +141,24 @@ module ActiveRecord #:nodoc:
             
             def touch_#{association_id}
               this_stack=  Kernel.caller
-              if this_stack.any?{|stack| /save!/ === stack}
-                  #{association_id}.#{method == :has_many.to_s ? "all {|association| association.touch!}" : "touch!"}
+              if this_stack.any?{|stack| /save/ === stack}
+                  #{association_id}.#{method == :has_many.to_s ? "all {|association| association.touch}" : "touch"}
               elsif this_stack.any?{|stack| /save/ === stack}
                  begin
-                  #{association_id}.#{method == :has_many.to_s ? "all {|association| association.touch!}" : "touch!"}
+                  #{association_id}.#{method == :has_many.to_s ? "all {|association| association.touch}" : "touch"}
                  rescue StandardError => message
                    errors.add(#{association_id}, message)
                    raise ActiveRecord::Rollback, false
-                  end
+                   end
+              else
+                 #{association_id}.#{method == :has_many.to_s ? "all {|association| association.touch}" : "touch"}  
                end               
              end
              
+              def touch_#{association_id}
+                return #{association_id}.#{method == :has_many.to_s ? "all? {|association| association.touch}" : "touch"}
+              end
+              
               def touch_#{association_id}!
                 return #{association_id}.#{method == :has_many.to_s ? "all? {|association| association.touch!}" : "touch!"}
               end
@@ -180,8 +173,8 @@ module ActiveRecord #:nodoc:
             raise ActiveRecord::Callbacks::UnknownCallbackError, "#{touchable} is not a valid ActiveRecord::Callback."
           end          
           arg_reflections = self.reflections[association_id.to_sym]
-          if arg_reflections.options[:touchable] && Kernel::const_get(arg_reflections.class_name).instance_methods.include?("touch")            
-            self.send "#{touchable}", "touch_#{association_id}"
+          if arg_reflections.options[:touchable] && Kernel::const_get(arg_reflections.class_name).instance_methods.include?("touch!")            
+            self.send "#{touchable}", "touch_#{association_id}! if changed?"
           else
             raise ActiveRecord::Acts::Touchable::UntouchableError, "\#{arg_reflections.class_name} is not touchable."
           end
