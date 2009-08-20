@@ -11,8 +11,9 @@ module ActiveRecord #:nodoc:
       module ClassMethods 
         def acts_as_touchable options ={}
           column = options.delete(:column)
-          if column.nil? && self.column_names.grep(/^(updated_(at|on))$/i)
-            column =  $1
+          defaults = self.column_names.grep(/^(updated_(at|on))$/i)
+          if column.nil? && !defaults.empty?
+            column =  defaults.first
           else raise ActiveRecord::Acts::Touchable::Untouchable, "Acts As Touchable requires a touchable model to have an updated_on or an updated_at column. #{@class} has neither of these columns. You may also specify a column with the :column option for acts_as_touchable" 
           end #unless
           
